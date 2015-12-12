@@ -4,7 +4,8 @@ requirejs.config({
     baseUrl: "/scripts/common",
     paths: {
         app: "/games/ld34/scripts"
-    }
+    },
+    urlArgs: "bust=" + (new Date()).getTime()
 });
 
 require(['jquery'], function (j) {

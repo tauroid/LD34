@@ -14,7 +14,6 @@ define(function() {
     }
 
     MessageBus.prototype.sendMessage = function (channel, message) {
-        console.log(this.channels);
         var channelsubs = this.channels[channel];
         for (var i = 0; i < channelsubs.length; ++i) {
             channelsubs[i].receiveMessage(channel, message);

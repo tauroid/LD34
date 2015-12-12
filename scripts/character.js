@@ -16,11 +16,7 @@ define(function() {
             physics: {}
         };
 
-        this.control = {
-            rolling: false,
-            rolldirection: "clockwise",
-            jumping: false
-        };
+        this.control = {};
 
         this.globalmessagebus.registerOnChannel("keydown", this);
         this.globalmessagebus.registerOnChannel("keyup", this);
@@ -29,43 +25,21 @@ define(function() {
     Character.prototype.receiveMessage = function (channel, message) {
         switch (channel) {
             case "keydown":
-                this.onKeyDown(message);
-                break;
-            default:
-                break;
+                this.onKeyDown(message); break;
+            case "keyup":
+                this.onKeyUp(message); break;
         }
-    }
+    };
 
     Character.prototype.onKeyDown = function (keyevent) {
-        if (keyevent.key == "ArrowUp") {
-            this.control.jumping = true;
-        } else if (keyevent.key == "ArrowLeft") {
-            this.rolling = true;
-            this.rolldirection = "clockwise";
-        } else if (keyevent.key == "ArrowRight") {
-            this.rolling = true;
-            this.rolldirection = "anticlockwise";
-        }
-    }
+        console.log("down");
+    };
 
+    Character.prototype.onKeyUp = function (keyevent) {
+        console.log("up");
+    };
 
-    Character.prototype.update = function (delta, time) {
-        if (this.control.jumping) this.jump();
-        if (this.control.rolling) this.jump(this.control.rolldirection == "clockwise");
-    }
-
-    Character.prototype.jump = function () {
-        var body = this.data.physics.body;
-        var currentvel = body.GetLinearVelocity();
-        body.SetLinearVelocity(new Box2D.b2Vec2(currentvel.get_x(), -10));
-    }
-
-    Character.prototype.roll = function (clockwise) {
-        var body = this.data.physics.body;
-        body.SetAwake(true);
-        var torque = clockwise ? 100 : -100;
-        body.ApplyTorque(torque);
-    }
+    Character.prototype.update = function (delta, time) {};
 
     return Character;
 });
