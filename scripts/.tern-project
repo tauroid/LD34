@@ -1,0 +1,13 @@
+{
+    "libs": [
+        "browser"
+    ],
+    "plugins": {
+        "requirejs": {
+            "baseURL": "/srv/http/scripts/common",
+            "paths": {
+                "app": "/srv/http/games/ld34/scripts"
+            }
+        }
+    }
+}
