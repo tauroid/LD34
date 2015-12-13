@@ -33,12 +33,32 @@ define(['app/plant', 'app/physicsbinder', 'app/paths'],
         ground.y = 225; ground.x = 100;
 
         stage.addChild(ground);
-        
+
+        var boxDef = new Box2D.b2BodyDef();
+        boxDef.set_type(Box2D.b2_dynamicBody);
+
+        var boxShape = new Box2D.b2PolygonShape();
+        boxShape.SetAsBox(25/physics_unit, 25/physics_unit);
+
+        var boxBody = pworld.CreateBody(boxDef);
+        var boxFixture = boxBody.CreateFixture(boxShape, 1);
+
+        var box = new PIXI.Graphics();
+
+        box.beginFill(0xFF0000);
+        box.drawRect(0,0,50,50);
+        box.endFill();
+        box.pivot = new PIXI.Point(25,25);
+        box.y = -50; box.x = 100;
+
+        stage.addChild(box);
+
         var plant = new Plant(stage, pworld, physicsbinder, game.messagebus, null);
 
         game.logicgroups[this.name] = [ plant ];
         
         physicsbinder.bindBodyToActor(groundBody, ground);
+        physicsbinder.bindBodyToActor(boxBody, box);
 
         physicsbinder.syncPhysicsBodies();
 

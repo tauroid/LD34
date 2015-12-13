@@ -1,9 +1,12 @@
 // Stores physics bodies and supplies graphics
 define(function () {
-    function PlantBody(position /* Canonical i.e. in stage */, physicsworld, physicsbinder) {
+    function PlantBody(position /* Canonical i.e. in stage */, stage, physicsworld, physicsbinder) {
         this.physicsworld = physicsworld;
         this.physicsbinder = physicsbinder;
+        this.stage = stage;
 
+        this.growSpeed = 0;
+        this.growAngle = 0;
         this.returnRate = 3;
         this.baseWidth = 25;
         this.maxWidth = 22;
@@ -16,10 +19,12 @@ define(function () {
         this.rootNode = position;
 
         var rootBodyDef = new Box2D.b2BodyDef();
+        rootBodyDef.set_type(Box2D.b2_staticBody);
         rootBodyDef.set_position(this.physicsbinder.actorToBodyPosition(this.rootNode));
         this.rootBody = this.physicsworld.CreateBody(rootBodyDef);
         this.firstSegment = null;
         this.tip = null;
+        this.swayOrig = 0;
 
         this.segments = [];
 
@@ -33,14 +38,19 @@ define(function () {
     };
 
     PlantBody.prototype.update = function (delta, time) {
+        // Harvest our physics seeds
+        this.recurseOnSegments(this.tip.prevSegment.prevSegment, this.syncSegmentWithPhysics.bind(this));
+        this.sway(this.tip.prevSegment.prevSegment, time);
+        var spawnedNew = this.grow(delta, time);
         this.recurseOnSegments(this.firstSegment, (function (segment) {
-            this.updateLinkState(segment, delta, time);
-            this.updatePhysics(segment);
-            this.updateGraphics(segment);
+            if (!this.isDynamic(segment)) this.returnToCentre(segment, delta, time);
+            this.updatePhysics(segment); // Only modifies segment.physics
+            this.updateGraphics(segment); // Only modifies segment.graphics
 
             segment.changed = false;
             segment.moved = false;
         }).bind(this));
+        if (spawnedNew) this.reloadGraphics();
     };
 
     PlantBody.prototype.recurseOnSegments = function (segment, func) {
@@ -53,7 +63,8 @@ define(function () {
         if (segment.nextSegment) this.recurseOnSegments(segment.nextSegment, func);
     }
 
-    PlantBody.prototype.updateLinkState = function (segment, delta, time) {
+    // Return to centre
+    PlantBody.prototype.returnToCentre = function (segment, delta, time) {
         if (segment.prevSegment) segment.baseNode = segment.prevSegment.topNode;
         var segAngle = this.getRelativeAngle(segment);
         var segVelocity = (segment.angle - segAngle) * this.returnRate;
@@ -64,7 +75,8 @@ define(function () {
         this.setSegmentAngle(segment, this.getSegmentAngle(segment) + segVelocity * delta / 1000);
     };
 
-    PlantBody.prototype.grow = function (speed, delta, time) {
+    // Move outwards
+    PlantBody.prototype.grow = function (delta, time) {
         var segment = this.tip;
         delta = delta/1000;
 
@@ -79,7 +91,7 @@ define(function () {
             var lineSegment = new PIXI.Point(segment.topNode.x - segment.baseNode.x,
                                              segment.topNode.y - segment.baseNode.y);
 
-            var newSegmentLength = segment.seglength + speed * delta;
+            var newSegmentLength = segment.seglength + this.growSpeed * delta;
 
             if (newSegmentLength < this.maxSegmentLength) {
                 scaling = newSegmentLength / segment.seglength;
@@ -89,7 +101,7 @@ define(function () {
 
             if (segment.prevSegment) segment.baseWidth = segment.prevSegment.topWidth;
 
-            var newTopWidth = segment.topWidth + speed/2 * delta;
+            var newTopWidth = segment.topWidth + this.growSpeed/2 * delta;
             if (segment.nextSegment && newTopWidth < this.maxWidth) {
                 segment.topWidth = newTopWidth;
             } else {
@@ -116,6 +128,9 @@ define(function () {
                 var newSegment = this.addSegment(segment, oldTop, segment == this.tip);
                 newSegment.growing = true;
                 spawnedNew = true;
+                segment.prevSegment.prevSegment.angle = this.swayOrig;
+                this.swayOrig = segment.prevSegment.angle;
+                segment.prevSegment.prevSegment.physics = null;
             }
 
             if (fullLength && fullWidth && segment.prevSegment && !segment.prevSegment.growing) {
@@ -129,6 +144,15 @@ define(function () {
 
         return spawnedNew;
     };
+
+    PlantBody.prototype.sway = function (segment, time) {
+        var shake1 = 0, shake2 = 0;
+        var shakeTime = (time/1000) % 10;
+        if (shakeTime < 2) shake1 = 0.15 * Math.sin(shakeTime * Math.PI);
+        var shake2Time = (time/2000) % 7;
+        if (shake2Time < 3) shake2 = 0.15 * Math.sin(shake2Time * 2/3 * Math.PI);
+        segment.angle = this.swayOrig + shake1 + shake2;
+    }
 
     PlantBody.prototype.addSegment = function (prevSegment, newNode, isTip) {
         var baseNode = prevSegment ? prevSegment.topNode : this.rootNode;
@@ -156,12 +180,6 @@ define(function () {
             moved: true
         };
 
-        this.updatePhysics(newSegment);
-        this.updateGraphics(newSegment);
-
-        newSegment.changed = false;
-        newSegment.moved = false;
-
         if (prevSegment) {
             prevSegment.nextSegment = newSegment;
             prevSegment.moved = true;
@@ -174,10 +192,17 @@ define(function () {
         return newSegment;
     };
 
+    PlantBody.prototype.isDynamic = function (segment) {
+        return this.tip && segment == this.tip ||
+               segment == this.tip.prevSegment ||
+               segment == this.tip.prevSegment.prevSegment;
+    }
+
     PlantBody.prototype.updatePhysics = function (segment) {
         if (!segment.moved) return;
         var b = Box2D; var p = segment.physics;
         var circleRadius = this.getCircleRadius(segment.seglength);
+        var dynamic = this.isDynamic(segment);
         // OKAY
         //
         // A segment owns:
@@ -197,7 +222,7 @@ define(function () {
             // Create body
 
             var segmentBodyDef = new b.b2BodyDef();
-            segmentBodyDef.set_type(b.b2_kinematicBody);
+            segmentBodyDef.set_type(dynamic ? b.b2_dynamicBody : b.b2_kinematicBody);
 
             p.segmentBody = this.physicsworld.CreateBody(segmentBodyDef);
 
@@ -218,8 +243,9 @@ define(function () {
                                                             circleRadius);
             
             this.attachCircles(segment);
-            this.moveSegmentToInitialPosition(segment);
        }
+
+        var physicsBaseNode = this.physicsbinder.actorToBodyPosition(segment.baseNode);
 
         // Need to reconstruct the revolute joint if we've grown (can't bloody change the radius!)
         if (segment.changed) {
@@ -241,30 +267,50 @@ define(function () {
 
             this.attachCircles(segment);
             
-        }    
-        var lineSegment = new PIXI.Point(segment.topNode.x - segment.baseNode.x,
-                                         segment.topNode.y - segment.baseNode.y);
+            if (dynamic) {
+                var jointDef = new b.b2RevoluteJointDef();
+                jointDef.Initialize(p.segmentBody,
+                                    segment.prevSegment ? segment.prevSegment.physics.segmentBody
+                                        : this.rootBody,
+                                    physicsBaseNode);
+                //jointDef.set_lowerAngle(-this.plantAngleLimit);
+                //jointDef.set_upperAngle(this.plantAngleLimit);
 
-        var physicsLineSegment = this.physicsbinder.actorToBodyPosition(lineSegment);
-        var physicsBaseNode = this.physicsbinder.actorToBodyPosition(segment.baseNode);
+                p.segmentJoint = this.physicsworld.CreateJoint(jointDef);
 
-        var newangle = Math.atan2(physicsLineSegment.get_x(), physicsLineSegment.get_y());
-        var newcentre = new b.b2Vec2(physicsBaseNode.get_x() + physicsLineSegment.get_x()/2,
-                                     physicsBaseNode.get_y() + physicsLineSegment.get_y()/2);
-            
-        p.segmentBody.SetTransform(newcentre, -newangle);
+                //p.segmentBody.SetAngularVelocity(segmentAngleVel);
+                //p.segmentBody.SetLinearVelocity(segmentLinearVel);
+            }
+        }
+
+        this.movePhysicsToCanonicalPosition(segment);
+
+        /*if (dynamic) {
+            var jointAngle = this.getRelativeAngle(segment);
+            var jointSpeed = this.getRelativeAngularSpeed(segment);
+
+            var motorTorque = -(segment.angle - jointAngle) * segment.stiffness
+                              - jointSpeed * this.plantDamping;
+            motorTorque = Math.min(Math.abs(motorTorque),this.torqueLimit) * 
+                (motorTorque > 0 ? 1 : -1);
+
+            p.segmentBody.ApplyTorque(motorTorque);
+        }*/
    };
 
     PlantBody.prototype.syncSegmentWithPhysics = function (segment) {
+        if (!segment.physics) return;
         var segmentPos = segment.physics.segmentBody.GetPosition();
         segmentPos = this.physicsbinder.bodyToActorPosition(segmentPos);
 
         var segAngle = segment.physics.segmentBody.GetAngle();
 
-        segment.baseNode = new PIXI.Point(segmentPos.x + segment.seglength / 2 * Math.sin(segAngle),
+        segment.baseNode = new PIXI.Point(segmentPos.x - segment.seglength / 2 * Math.sin(segAngle),
                                           segmentPos.y - segment.seglength / 2 * Math.cos(segAngle));
-        segment.topNode = new PIXI.Point(segmentPos.x - segment.seglength / 2 * Math.sin(segAngle),
+        segment.topNode = new PIXI.Point(segmentPos.x + segment.seglength / 2 * Math.sin(segAngle),
                                          segmentPos.y + segment.seglength / 2 * Math.cos(segAngle));
+
+        segment.moved = true;
     };
     
     PlantBody.prototype.updateGraphics = function (segment) {
@@ -274,7 +320,7 @@ define(function () {
         else segment.graphics.clear();
         var g = segment.graphics;
 
-        g.lineStyle(2, 0x00FF00, 1);
+        g.beginFill(0x00FF00, 1);
 
         var baseAngle = this.getBaseAngle(segment);
 
@@ -303,7 +349,11 @@ define(function () {
             g.lineTo(rb.x, rb.y);
             g.lineTo(lb.x, lb.y);
         }
+
+        g.endFill();
         
+        // Debug
+        /*
         var segmentPos =
             this.physicsbinder.bodyToActorPosition(segment.physics.segmentBody.GetPosition());
 
@@ -330,13 +380,15 @@ define(function () {
 
         g.moveTo(segment.baseNode.x, segment.baseNode.y);
         g.lineTo(segment.topNode.x, segment.topNode.y);
+        */
     };
 
-    PlantBody.prototype.insertGraphics = function (stage) {
+    PlantBody.prototype.reloadGraphics = function () {
         //stage.addChild(this.baseAngularSpeedText);
         //stage.addChild(this.motorTorqueText);
+        this.stage.removeChildren();
         this.recurseOnSegments(this.firstSegment, (function (segment) {
-            stage.addChild(segment.graphics);
+            this.stage.addChild(segment.graphics);
         }).bind(this));
     };
 
@@ -396,7 +448,7 @@ define(function () {
         return segSpeed - segment.prevSegment.physics.segmentBody.GetAngularVelocity();
     }
 
-    PlantBody.prototype.moveSegmentToInitialPosition = function (segment) {
+    PlantBody.prototype.movePhysicsToCanonicalPosition = function (segment) {
         var b = Box2D; var p = segment.physics;
 
         var lineSegment = new PIXI.Point(segment.topNode.x - segment.baseNode.x,

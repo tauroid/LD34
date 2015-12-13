@@ -49,6 +49,8 @@ define(['app/messagebus'], function (MessageBus) {
         window.onkeydown = this.onKeyDown.bind(this);
         window.onkeyup = this.onKeyUp.bind(this);
 
+        window.onmousedown = this.onMouseDown.bind(this);
+
         this.render();
         this.update();
     }
@@ -76,13 +78,13 @@ define(['app/messagebus'], function (MessageBus) {
             return;
         }
         var newtime = new Date().getTime();
-        var delta = newtime - this.lastUpdateTime;
+        var delta = Math.min(30, newtime - this.lastUpdateTime); // Hey, fucka you!
         this.lastUpdateTime = newtime;
 
         for (var i = 0; i < this.activethings.length; ++i) {
             var physicsworld = this.physicsworlds[this.activethings[i]];
             if (physicsworld !== undefined) {
-                physicsworld.Step(delta/2000, this.velIterations, this.posIterations);
+                physicsworld.Step(delta/1000, this.velIterations, this.posIterations);
             }
         }
 
@@ -134,6 +136,10 @@ define(['app/messagebus'], function (MessageBus) {
 
     Game.prototype.onKeyUp = function (keyevent) {
         this.messagebus.sendMessage("keyup", keyevent);
+    }
+
+    Game.prototype.onMouseDown = function (mouseevent) {
+        
     }
 
     return Game;
