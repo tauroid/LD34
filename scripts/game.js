@@ -17,14 +17,24 @@ define(['app/messagebus'], function (MessageBus) {
 
         this.configs = {};
 
+        this.focussed = true;
+
+        $(window).focus((function () {
+            this.focussed = true;
+            this.lastUpdateTime = new Date().getTime();
+        }).bind(this));
+
+        $(window).blur((function () {
+            this.focussed = false;
+        }).bind(this));
+
         this.updateTimestep = 20;
 
         this.velIterations = 10;
-        this.posIterations = 3;
+        this.posIterations = 10;
 
         this.lastUpdateTime = new Date().getTime();
 
-        console.log("how many?");
         this.renderer = new PIXI.autoDetectRenderer(window.innerWidth, window.innerHeight);
         this.renderer.view.style.display = "block";
         document.body.style.margin = "0";
@@ -61,6 +71,10 @@ define(['app/messagebus'], function (MessageBus) {
     }
 
     Game.prototype.update = function () {
+        if (!this.focussed) {
+            setTimeout(this.update.bind(this), this.updateTimestep);
+            return;
+        }
         var newtime = new Date().getTime();
         var delta = newtime - this.lastUpdateTime;
         this.lastUpdateTime = newtime;
@@ -68,7 +82,7 @@ define(['app/messagebus'], function (MessageBus) {
         for (var i = 0; i < this.activethings.length; ++i) {
             var physicsworld = this.physicsworlds[this.activethings[i]];
             if (physicsworld !== undefined) {
-                physicsworld.Step(delta/1000, this.velIterations, this.posIterations);
+                physicsworld.Step(delta/2000, this.velIterations, this.posIterations);
             }
         }
 

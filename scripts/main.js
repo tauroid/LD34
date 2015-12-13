@@ -14,11 +14,20 @@ require(['jquery'], function (j) {
     $ = j;
     // TODO: Loady load here
 
-    require(['pixi.min','Box2D_v2.3.1_min','app/game','app/testlevel'],
-            function (p, B, Game, TestLevel) {
+    require(['pixi.min','Box2D_v2.3.1_min','app/paths','app/game','app/testlevel'],
+            function (p, B, Paths, Game, TestLevel) {
         PIXI = p; Box2D = B;
 
-        $(document).ready(function () { start(Game, TestLevel); });
+        $(document).ready(function () {
+            var loader = PIXI.loader;
+            for (var path in Paths) {
+                for (var filepath in Paths[path].files) {
+                    loader.add(path+"."+filepath, Paths[path].path+Paths[path].files[filepath]);
+                }
+            }
+            loader.once('complete', function () { start(Game, TestLevel); });
+            loader.load();
+        });
     });
 });
 

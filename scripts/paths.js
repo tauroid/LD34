@@ -1,5 +1,13 @@
 define({
-    assets: "/games/ld34/assets/",
-    images: "/games/ld34/assets/images/",
-    animations: "/games/ld34/assets/animations/"
+    assets: { path: "/games/ld34/assets/", files: {} },
+    images: {
+        path: "/games/ld34/assets/images/",
+        files: {
+            man: "man.png"
+        }
+    },
+    animations: {
+        path: "/games/ld34/assets/animations/",
+        files: {}
+    }
 });

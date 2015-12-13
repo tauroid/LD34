@@ -15,24 +15,30 @@ define(function () {
         this.bodyActorBindings.push([body, actor]);
     }
 
+    PhysicsBinder.prototype.syncActor = function (actor, body) {
+        var bodyPosition = body.GetPosition();
+        var bodyRotation = body.GetAngle();
+
+        var actorPosition = this.bodyToActorPosition(bodyPosition);
+        actor.x = actorPosition.x;
+        actor.y = actorPosition.y;
+        actor.rotation = bodyRotation;
+    }
+
+    PhysicsBinder.prototype.syncPhysicsBody = function (body, actor) {
+        body.SetTransform(
+            this.actorToBodyPosition(actor), actor.rotation);
+    }
+
     PhysicsBinder.prototype.syncActors = function () {
         for (var i = 0; i < this.bodyActorBindings.length; ++i) {
-            var bodyPosition = this.bodyActorBindings[i][0].GetPosition();
-            var bodyRotation = this.bodyActorBindings[i][0].GetAngle();
-
-            var actor = this.bodyToActorPosition(bodyPosition);
-            this.bodyActorBindings[i][1].x = actor.x;
-            this.bodyActorBindings[i][1].y = actor.y;
-            this.bodyActorBindings[i][1].rotation = bodyRotation;
+            this.syncActor(this.bodyActorBindings[i][1], this.bodyActorBindings[i][0]);
         }
     }
 
     PhysicsBinder.prototype.syncPhysicsBodies = function () {
         for (var i = 0; i < this.bodyActorBindings.length; ++i) {
-            var actor = this.bodyActorBindings[i][1];
-
-            this.bodyActorBindings[i][0].SetTransform(
-                this.actorToBodyPosition(actor), actor.rotation);
+            this.syncPhysicsBody(this.bodyActorBindings[i][0], this.bodyActorBindings[i][1]);
         }
     }
 
